@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace dt191g_moment4.Models
 {
@@ -14,13 +15,18 @@ namespace dt191g_moment4.Models
         [Required]
         public int Length { get; set; }
         [Required]
-        public string? category { get; set; }
+        public string? Category { get; set; }
+
+        public int? AlbumId { get; set; }
+        public Album? Album { get; set; }
     }
 
-    public class Album {
+    public class Album
+    {
         public int Id { get; set; }
-
         [Required]
-        public Song? Song { get; set; }
+        public string? Name { get; set; }
+        [Required]
+        public List<Song> Songs { get; set; } = new List<Song>();
     }
 }

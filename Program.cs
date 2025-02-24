@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using dt191g_moment4.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,10 +9,16 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddOpenApi();
 builder.Services.AddAuthentication();
 builder.Services.AddAuthorization();
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // Ta bort hantering av cykliska referenser
+        options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+    });
+
 
 // Db connection
-builder.Services.AddDbContext<SongContext>(options =>
+builder.Services.AddDbContext<MusicContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultDbConnection")));
 
 var app = builder.Build();

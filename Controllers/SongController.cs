@@ -14,9 +14,9 @@ namespace dt191g_moment4.Controllers
     [ApiController]
     public class SongController : ControllerBase
     {
-        private readonly SongContext _context;
+        private readonly MusicContext _context;
 
-        public SongController(SongContext context)
+        public SongController(MusicContext context)
         {
             _context = context;
         }
@@ -25,7 +25,11 @@ namespace dt191g_moment4.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Song>>> GetSongs()
         {
-            return await _context.Songs.ToListAsync();
+            var songs = await _context.Songs
+        .Include(s => s.Album)  // Inkludera albumet när du hämtar låten
+        .ToListAsync();
+
+            return Ok(songs);
         }
 
         // GET: api/Song/5
@@ -78,6 +82,24 @@ namespace dt191g_moment4.Controllers
         [HttpPost]
         public async Task<ActionResult<Song>> PostSong(Song song)
         {
+            // Kolla om albumet redan finns i databasen
+            var existingAlbum = await _context.Albums
+                .FirstOrDefaultAsync(a => a.Name == song.Album.Name);
+
+            if (existingAlbum != null)
+            {
+                // Om albumet finns, koppla låten till det albumet
+                song.AlbumId = existingAlbum.Id;
+            }
+            else if (song.Album != null)
+            {
+                // Om albumet inte finns, skapa ett nytt album och koppla låten till det
+                _context.Albums.Add(song.Album);
+                await _context.SaveChangesAsync();  // Spara albumet för att få ett Id
+
+                song.AlbumId = song.Album.Id;  // Koppla låten till det nya albumet
+            }
+
             _context.Songs.Add(song);
             await _context.SaveChangesAsync();
 
