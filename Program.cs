@@ -15,6 +15,11 @@ builder.Services.AddControllers()
         // Ta bort hantering av cykliska referenser
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     });
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+    });
 
 
 // Db connection

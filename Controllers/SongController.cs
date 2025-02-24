@@ -29,7 +29,22 @@ namespace dt191g_moment4.Controllers
         .Include(s => s.Album)  // Inkludera albumet när du hämtar låten
         .ToListAsync();
 
-            return Ok(songs);
+            var songDtos = songs.Select(song => new SongDto
+            {
+                Id = song.Id,
+                Artist = song.Artist,
+                Title = song.Title,
+                Length = song.Length,
+                Category = song.Category,
+                AlbumId = song.AlbumId ?? 0,
+                Album = song.Album != null ? new AlbumDto
+                {
+                    Id = song.Album.Id,
+                    Name = song.Album.Name ?? string.Empty
+                } : null
+            }).ToList();
+
+            return Ok(songDtos);
         }
 
         // GET: api/Song/5
@@ -80,8 +95,17 @@ namespace dt191g_moment4.Controllers
         // POST: api/Song
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<Song>> PostSong(Song song)
+        public async Task<ActionResult<Song>> PostSong([FromBody] Song song)
         {
+            Console.WriteLine($"Received Song: {song}");
+            Console.WriteLine($"Album: {song?.Album}");
+            Console.WriteLine($"Album Name: {song?.Album?.Name}");
+            // Om sång eller sång.Album är null, returnera BadRequest
+            if (song == null || song.Album == null || string.IsNullOrWhiteSpace(song.Album.Name))
+            {
+                return BadRequest("Ogiltig sång data: Saknar album.");
+            }
+
             // Kolla om albumet redan finns i databasen
             var existingAlbum = await _context.Albums
                 .FirstOrDefaultAsync(a => a.Name == song.Album.Name);
