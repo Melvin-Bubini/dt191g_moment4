@@ -23,18 +23,18 @@ namespace dt191g_moment4.Controllers
 
         // GET: api/Song
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Song>>> GetSongs()
+        public async Task<ActionResult<IEnumerable<SongDto>>> GetSongs()
         {
-            var song = await _context.Songs
+            var songs = await _context.Songs
         .Include(s => s.Album)  // Inkludera albumet när du hämtar låten
         .ToListAsync();
 
-            if (song == null)
+            if (songs == null)
             {
                 return NotFound();
             }
 
-            var songDtos = song.Select(song => new SongDto
+            var songDtos = songs.Select(song => new SongDto
             {
                 Id = song.Id,
                 Artist = song.Artist,
@@ -54,7 +54,7 @@ namespace dt191g_moment4.Controllers
 
         // GET: api/Song/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Song>> GetSong(int id)
+        public async Task<ActionResult<SongDto>> GetSong(int id)
         {
             var song = await _context.Songs
                 .Include(s => s.Album)
@@ -93,7 +93,50 @@ namespace dt191g_moment4.Controllers
                 return BadRequest();
             }
 
-            _context.Entry(song).State = EntityState.Modified;
+            // Hämta befintlig låt för att hantera Album-relationen separat
+            var existingSong = await _context.Songs
+                .Include(s => s.Album)
+                .FirstOrDefaultAsync(s => s.Id == id);
+
+            if (existingSong == null)
+            {
+                return NotFound();
+            }
+
+            // Uppdatera basegenskaper
+            existingSong.Artist = song.Artist;
+            existingSong.Title = song.Title;
+            existingSong.Length = song.Length;
+            existingSong.Category = song.Category;
+
+            // Hantera album på liknande sätt som i PostSong
+            if (song.Album != null)
+            {
+                var existingAlbum = await _context.Albums
+                    .FirstOrDefaultAsync(a => a.Name == song.Album.Name);
+
+                if (existingAlbum != null)
+                {
+                    existingSong.Album = null;
+                    existingSong.AlbumId = existingAlbum.Id;
+                }
+                else
+                {
+                    if (existingSong.Album != null)
+                    {
+                        _context.Entry(existingSong.Album).State = EntityState.Detached;
+                    }
+                    _context.Albums.Add(song.Album);
+                    await _context.SaveChangesAsync();
+
+                    existingSong.AlbumId = song.Album.Id;
+                }
+            }
+            else
+            {
+                existingSong.Album = null;
+                existingSong.AlbumId = null;
+            }
 
             try
             {
@@ -152,7 +195,22 @@ namespace dt191g_moment4.Controllers
             _context.Songs.Add(song);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction("GetSong", new { id = song.Id }, song);
+            var createdSongDto = new SongDto
+            {
+                Id = song.Id,
+                Artist = song.Artist,
+                Title = song.Title,
+                Length = song.Length,
+                Category = song.Category,
+                AlbumId = song.AlbumId,
+                Album = song.Album != null ? new AlbumDto
+                {
+                    Id = song.Album.Id,
+                    Name = song.Album.Name
+                } : null
+            };
+
+            return CreatedAtAction("GetSong", new { id = song.Id }, createdSongDto);
         }
 
         // DELETE: api/Song/5

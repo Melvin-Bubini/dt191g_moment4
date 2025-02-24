@@ -23,26 +23,57 @@ namespace dt191g_moment4.Controllers
 
         // GET: api/Album
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Album>>> GetAlbums()
+        public async Task<ActionResult<IEnumerable<object>>> GetAlbums()
         {
             var albums = await _context.Albums
-             .Include(a => a.Songs)
-             .ToListAsync();
-            return Ok(albums);
+        .Include(a => a.Songs)
+        .ToListAsync();
+
+            var albumDtos = albums.Select(album => new
+            {
+                album.Id,
+                album.Name,
+                Songs = album.Songs.Select(song => new
+                {
+                    song.Id,
+                    song.Artist,
+                    song.Title,
+                    song.Length,
+                    song.Category
+                }).ToList()
+            });
+
+            return Ok(albumDtos);
         }
 
         // GET: api/Album/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Album>> GetAlbum(int id)
+        public async Task<ActionResult<object>> GetAlbum(int id)
         {
-            var album = await _context.Albums.FindAsync(id);
+            var album = await _context.Albums
+        .Include(a => a.Songs)
+        .FirstOrDefaultAsync(a => a.Id == id);
 
             if (album == null)
             {
                 return NotFound();
             }
 
-            return album;
+            var albumDto = new
+            {
+                album.Id,
+                album.Name,
+                Songs = album.Songs.Select(song => new
+                {
+                    song.Id,
+                    song.Artist,
+                    song.Title,
+                    song.Length,
+                    song.Category
+                }).ToList()
+            };
+
+            return Ok(albumDto);
         }
 
         // PUT: api/Album/5
@@ -55,7 +86,18 @@ namespace dt191g_moment4.Controllers
                 return BadRequest();
             }
 
-            _context.Entry(album).State = EntityState.Modified;
+            // Kontrollera om albumet finns
+            var existingAlbum = await _context.Albums
+                .Include(a => a.Songs)
+                .FirstOrDefaultAsync(a => a.Id == id);
+
+            if (existingAlbum == null)
+            {
+                return NotFound();
+            }
+
+            // Uppdatera bara namnet, inte relationen till låtar
+            existingAlbum.Name = album.Name;
 
             try
             {
@@ -97,17 +139,34 @@ namespace dt191g_moment4.Controllers
             _context.Albums.Add(album);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction("GetAlbum", new { id = album.Id }, album);
+            var albumDto = new
+            {
+                album.Id,
+                album.Name,
+                Songs = new List<object>() // Tom lista eftersom ett nytt album inte har några låtar än
+            };
+
+            return CreatedAtAction("GetAlbum", new { id = album.Id }, albumDto);
         }
 
         // DELETE: api/Album/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteAlbum(int id)
         {
-            var album = await _context.Albums.FindAsync(id);
+            var album = await _context.Albums
+        .Include(a => a.Songs)
+        .FirstOrDefaultAsync(a => a.Id == id);
+
             if (album == null)
             {
                 return NotFound();
+            }
+
+            // Alternativ 1: Ta bort albumreferensen från låtarna men behåll låtarna
+            foreach (var song in album.Songs.ToList())
+            {
+                song.AlbumId = null;
+                song.Album = null;
             }
 
             _context.Albums.Remove(album);
