@@ -25,11 +25,16 @@ namespace dt191g_moment4.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Song>>> GetSongs()
         {
-            var songs = await _context.Songs
+            var song = await _context.Songs
         .Include(s => s.Album)  // Inkludera albumet när du hämtar låten
         .ToListAsync();
 
-            var songDtos = songs.Select(song => new SongDto
+            if (song == null)
+            {
+                return NotFound();
+            }
+
+            var songDtos = song.Select(song => new SongDto
             {
                 Id = song.Id,
                 Artist = song.Artist,
@@ -51,14 +56,31 @@ namespace dt191g_moment4.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<Song>> GetSong(int id)
         {
-            var song = await _context.Songs.FindAsync(id);
+            var song = await _context.Songs
+                .Include(s => s.Album)
+                .FirstOrDefaultAsync(s => s.Id == id);
 
             if (song == null)
             {
                 return NotFound();
             }
 
-            return song;
+            var songDto = new SongDto
+            {
+                Id = song.Id,
+                Artist = song.Artist,
+                Title = song.Title,
+                Length = song.Length,
+                Category = song.Category,
+                AlbumId = song.AlbumId,
+                Album = song.Album != null ? new AlbumDto
+                {
+                    Id = song.Album.Id,
+                    Name = song.Album.Name
+                } : null
+            };
+
+            return Ok(songDto);
         }
 
         // PUT: api/Song/5
@@ -97,32 +119,35 @@ namespace dt191g_moment4.Controllers
         [HttpPost]
         public async Task<ActionResult<Song>> PostSong([FromBody] Song song)
         {
-            Console.WriteLine($"Received Song: {song}");
-            Console.WriteLine($"Album: {song?.Album}");
-            Console.WriteLine($"Album Name: {song?.Album?.Name}");
             // Om sång eller sång.Album är null, returnera BadRequest
-            if (song == null || song.Album == null || string.IsNullOrWhiteSpace(song.Album.Name))
+            if (song == null)
             {
-                return BadRequest("Ogiltig sång data: Saknar album.");
+                return BadRequest("Song är null.");
             }
 
-            // Kolla om albumet redan finns i databasen
-            var existingAlbum = await _context.Albums
-                .FirstOrDefaultAsync(a => a.Name == song.Album.Name);
-
-            if (existingAlbum != null)
+            // Om albumet är specificerat
+            if (song.Album != null)
             {
-                // Om albumet finns, koppla låten till det albumet
-                song.AlbumId = existingAlbum.Id;
-            }
-            else if (song.Album != null)
-            {
-                // Om albumet inte finns, skapa ett nytt album och koppla låten till det
-                _context.Albums.Add(song.Album);
-                await _context.SaveChangesAsync();  // Spara albumet för att få ett Id
+                // Kolla om albumet redan finns i databasen
+                var existingAlbum = await _context.Albums
+                    .FirstOrDefaultAsync(a => a.Name == song.Album.Name);
 
-                song.AlbumId = song.Album.Id;  // Koppla låten till det nya albumet
+                if (existingAlbum != null)
+                {
+                    // Om albumet finns, koppla låten till det albumet
+                    song.Album = null; // Undvik att skapa dubletter
+                    song.AlbumId = existingAlbum.Id;
+                }
+                else
+                {
+                    // Om albumet inte finns, skapa ett nytt album och koppla låten till det
+                    _context.Albums.Add(song.Album);
+                    await _context.SaveChangesAsync();  // Spara albumet för att få ett Id
+
+                    song.AlbumId = song.Album.Id;  // Koppla låten till det nya albumet
+                }
             }
+            // Om inget album är specificerat, låt AlbumId vara null
 
             _context.Songs.Add(song);
             await _context.SaveChangesAsync();
