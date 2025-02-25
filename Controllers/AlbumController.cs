@@ -15,65 +15,83 @@ namespace dt191g_moment4.Controllers
     public class AlbumController : ControllerBase
     {
         private readonly MusicContext _context;
+        private readonly ILogger<AlbumController> _logger;
 
-        public AlbumController(MusicContext context)
+        public AlbumController(MusicContext context, ILogger<AlbumController> logger)
         {
             _context = context;
+            _logger = logger;
         }
 
         // GET: api/Album
         [HttpGet]
         public async Task<ActionResult<IEnumerable<object>>> GetAlbums()
         {
-            var albums = await _context.Albums
-        .Include(a => a.Songs)
-        .ToListAsync();
-
-            var albumDtos = albums.Select(album => new
+            try
             {
-                album.Id,
-                album.Name,
-                Songs = album.Songs.Select(song => new
-                {
-                    song.Id,
-                    song.Artist,
-                    song.Title,
-                    song.Length,
-                    song.Category
-                }).ToList()
-            });
+                var albums = await _context.Albums
+                    .Include(a => a.Songs)
+                    .ToListAsync();
 
-            return Ok(albumDtos);
+                var albumDtos = albums.Select(album => new
+                {
+                    album.Id,
+                    album.Name,
+                    Songs = album.Songs.Select(song => new
+                    {
+                        song.Id,
+                        song.Artist,
+                        song.Title,
+                        song.Length,
+                        song.Category
+                    }).ToList()
+                });
+
+                return Ok(albumDtos);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Ett fel inträffade vid hämtning av alla album");
+                return StatusCode(500, "Ett internt serverfel inträffade vid hämtning av album.");
+            }
         }
 
         // GET: api/Album/5
         [HttpGet("{id}")]
         public async Task<ActionResult<object>> GetAlbum(int id)
         {
-            var album = await _context.Albums
-        .Include(a => a.Songs)
-        .FirstOrDefaultAsync(a => a.Id == id);
-
-            if (album == null)
+            try
             {
-                return NotFound();
-            }
+                var album = await _context.Albums
+                    .Include(a => a.Songs)
+                    .FirstOrDefaultAsync(a => a.Id == id);
 
-            var albumDto = new
-            {
-                album.Id,
-                album.Name,
-                Songs = album.Songs.Select(song => new
+                if (album == null)
                 {
-                    song.Id,
-                    song.Artist,
-                    song.Title,
-                    song.Length,
-                    song.Category
-                }).ToList()
-            };
+                    return NotFound($"Albumet med id {id} hittades inte.");
+                }
 
-            return Ok(albumDto);
+                var albumDto = new
+                {
+                    album.Id,
+                    album.Name,
+                    Songs = album.Songs.Select(song => new
+                    {
+                        song.Id,
+                        song.Artist,
+                        song.Title,
+                        song.Length,
+                        song.Category
+                    }).ToList()
+                };
+
+                return Ok(albumDto);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Ett fel inträffade vid hämtning av album med id {id}");
+                return StatusCode(500, "Ett internt serverfel inträffade vid hämtning av albumet.");
+            }
         }
 
         // PUT: api/Album/5
@@ -81,41 +99,73 @@ namespace dt191g_moment4.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> PutAlbum(int id, Album album)
         {
+            if (album == null)
+            {
+                return BadRequest("Albumet kan inte vara null.");
+            }
+
             if (id != album.Id)
             {
-                return BadRequest();
+                return BadRequest("ID i URL:en matchar inte ID i albumobjektet.");
             }
 
-            // Kontrollera om albumet finns
-            var existingAlbum = await _context.Albums
-                .Include(a => a.Songs)
-                .FirstOrDefaultAsync(a => a.Id == id);
-
-            if (existingAlbum == null)
+            if (string.IsNullOrEmpty(album.Name))
             {
-                return NotFound();
+                return BadRequest("Albumet måste ha ett namn.");
             }
-
-            // Uppdatera bara namnet, inte relationen till låtar
-            existingAlbum.Name = album.Name;
 
             try
             {
-                await _context.SaveChangesAsync();
+                // Kontrollera om albumet finns
+                var existingAlbum = await _context.Albums
+                    .Include(a => a.Songs)
+                    .FirstOrDefaultAsync(a => a.Id == id);
+
+                if (existingAlbum == null)
+                {
+                    return NotFound($"Albumet med id {id} hittades inte.");
+                }
+
+                // Kontrollera om namnet redan används av ett annat album
+                var duplicateAlbum = await _context.Albums
+                    .FirstOrDefaultAsync(a => a.Id != id && a.Name == album.Name);
+
+                if (duplicateAlbum != null)
+                {
+                    return Conflict($"Ett album med namnet '{album.Name}' finns redan.");
+                }
+
+                // Uppdatera bara namnet, inte relationen till låtar
+                existingAlbum.Name = album.Name;
+
+                try
+                {
+                    await _context.SaveChangesAsync();
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    if (!AlbumExists(id))
+                    {
+                        return NotFound($"Albumet med id {id} hittades inte.");
+                    }
+                    else
+                    {
+                        throw;
+                    }
+                }
+
+                return NoContent();
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!AlbumExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                _logger.LogError($"En DbUpdateConcurrencyException inträffade vid uppdatering av album med id {id}");
+                return StatusCode(500, "Ett problem uppstod på grund av samtidig uppdatering. Försök igen.");
             }
-
-            return NoContent();
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Ett fel inträffade vid uppdatering av album med id {id}");
+                return StatusCode(500, "Ett internt serverfel inträffade vid uppdatering av albumet.");
+            }
         }
 
         // POST: api/Album
@@ -123,56 +173,82 @@ namespace dt191g_moment4.Controllers
         [HttpPost]
         public async Task<ActionResult<Album>> PostAlbum(Album album)
         {
-            if (album == null || string.IsNullOrEmpty(album.Name))
+            try
             {
-                return BadRequest("Albumet måste ha ett namn");
+                if (album == null || string.IsNullOrEmpty(album.Name))
+                {
+                    return BadRequest("Albumet måste ha ett namn.");
+                }
+
+                var existingAlbum = await _context.Albums
+                    .FirstOrDefaultAsync(a => a.Name == album.Name);
+
+                if (existingAlbum != null)
+                {
+                    return Conflict($"Ett album med namnet '{album.Name}' finns redan.");
+                }
+
+                _context.Albums.Add(album);
+                await _context.SaveChangesAsync();
+
+                var albumDto = new
+                {
+                    album.Id,
+                    album.Name,
+                    Songs = new List<object>() // Tom lista eftersom ett nytt album inte har några låtar än
+                };
+
+                return CreatedAtAction("GetAlbum", new { id = album.Id }, albumDto);
             }
-
-            var existingAlbum = await _context.Albums
-             .FirstOrDefaultAsync(a => a.Name == album.Name);
-
-            if (existingAlbum != null)
+            catch (DbUpdateException ex)
             {
-                return BadRequest("En album med detta namn finns redan");
+                _logger.LogError(ex, "Ett fel inträffade vid skapande av nytt album");
+                return StatusCode(500, "Ett fel inträffade vid sparande av albumet. Kontrollera att alla värden är korrekta.");
             }
-
-            _context.Albums.Add(album);
-            await _context.SaveChangesAsync();
-
-            var albumDto = new
+            catch (Exception ex)
             {
-                album.Id,
-                album.Name,
-                Songs = new List<object>() // Tom lista eftersom ett nytt album inte har några låtar än
-            };
-
-            return CreatedAtAction("GetAlbum", new { id = album.Id }, albumDto);
+                _logger.LogError(ex, "Ett oväntat fel inträffade vid skapande av nytt album");
+                return StatusCode(500, "Ett internt serverfel inträffade vid skapande av albumet.");
+            }
         }
 
         // DELETE: api/Album/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteAlbum(int id)
         {
-            var album = await _context.Albums
-        .Include(a => a.Songs)
-        .FirstOrDefaultAsync(a => a.Id == id);
-
-            if (album == null)
+            try
             {
-                return NotFound();
-            }
+                var album = await _context.Albums
+                    .Include(a => a.Songs)
+                    .FirstOrDefaultAsync(a => a.Id == id);
 
-            // Alternativ 1: Ta bort albumreferensen från låtarna men behåll låtarna
-            foreach (var song in album.Songs.ToList())
+                if (album == null)
+                {
+                    return NotFound($"Albumet med id {id} hittades inte.");
+                }
+
+                // Alternativ 1: Ta bort albumreferensen från låtarna men behåll låtarna
+                foreach (var song in album.Songs.ToList())
+                {
+                    song.AlbumId = null;
+                    song.Album = null;
+                }
+
+                _context.Albums.Remove(album);
+                await _context.SaveChangesAsync();
+
+                return NoContent();
+            }
+            catch (DbUpdateException ex)
             {
-                song.AlbumId = null;
-                song.Album = null;
+                _logger.LogError(ex, $"Ett fel inträffade vid borttagning av album med id {id}");
+                return StatusCode(500, "Ett fel inträffade vid borttagning av albumet. Det kan finnas beroenden som inte kunde hanteras.");
             }
-
-            _context.Albums.Remove(album);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Ett oväntat fel inträffade vid borttagning av album med id {id}");
+                return StatusCode(500, "Ett internt serverfel inträffade vid borttagning av albumet.");
+            }
         }
 
         private bool AlbumExists(int id)
