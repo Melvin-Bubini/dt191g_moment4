@@ -39,6 +39,7 @@ namespace dt191g_moment4.Models
         public List<Song> Songs { get; set; } = new List<Song>();
     }
 
+    //DTOs (Data Transfer Objects) för att formatera det data som returneras
     public class SongDto
     {
         public int Id { get; set; }
@@ -54,7 +55,7 @@ namespace dt191g_moment4.Models
     {
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
-    
+
     }
 
 }

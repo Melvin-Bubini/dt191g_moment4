@@ -156,24 +156,28 @@ namespace dt191g_moment4.Controllers
 
                     if (existingAlbum != null)
                     {
-                        existingSong.Album = null;
+
                         existingSong.AlbumId = existingAlbum.Id;
                     }
                     else
                     {
-                        if (existingSong.Album != null)
-                        {
-                            _context.Entry(existingSong.Album).State = EntityState.Detached;
-                        }
-                        _context.Albums.Add(song.Album);
+                        // Skapa ett nytt album
+                        var newAlbum = new Album { Name = song.Album.Name };
+                        _context.Albums.Add(newAlbum);
                         await _context.SaveChangesAsync();
 
-                        existingSong.AlbumId = song.Album.Id;
+                        existingSong.AlbumId = newAlbum.Id;
                     }
+                }
+                else if (song.AlbumId.HasValue)
+                {
+                    // Om det finns ett AlbumId men inget Album-objekt,
+                    // behåll bara AlbumId
+                    existingSong.AlbumId = song.AlbumId;
                 }
                 else
                 {
-                    existingSong.Album = null;
+                    // Bara om det uttryckligen inte ska finnas något album
                     existingSong.AlbumId = null;
                 }
 
@@ -288,7 +292,7 @@ namespace dt191g_moment4.Controllers
                 };
 
                 return CreatedAtAction("GetSong", new { id = song.Id }, createdSongDto);
-            } 
+            }
             catch (DbUpdateException ex)
             {
                 _logger.LogError(ex, "Ett fel inträffade vid skapande av ny låt");
