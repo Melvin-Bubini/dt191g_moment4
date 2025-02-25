@@ -11,7 +11,7 @@ namespace dt191g_moment4.Migrations
 {
     [DbContext(typeof(MusicContext))]
     [Migration("20250224104935_commit")]
-    partial class commit
+    partial class Commit
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

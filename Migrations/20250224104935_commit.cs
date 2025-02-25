@@ -5,7 +5,7 @@
 namespace dt191g_moment4.Migrations
 {
     /// <inheritdoc />
-    public partial class commit : Migration
+    public partial class Commit : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

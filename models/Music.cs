@@ -8,13 +8,20 @@ namespace dt191g_moment4.Models
     {
         public int Id { get; set; }
 
-        [Required]
+        [Required(ErrorMessage = "Artist är obligatoriskt")]
+        [StringLength(50, ErrorMessage = "Artist får inte överstiga 50 tecken")]
         public string Artist { get; set; } = string.Empty;
-        [Required]
+
+        [Required(ErrorMessage = "Titel är obligatoriskt")]
+        [StringLength(50, ErrorMessage = "Titel får inte överstiga 50 tecken")]
         public string Title { get; set; } = string.Empty;
-        [Required]
+
+        [Required(ErrorMessage = "Längd är obligatoriskt")]
+        [Range(1, 3600, ErrorMessage = "Längd måste vara mellan 1 och 3600 sekunder")]
         public int Length { get; set; }
-        [Required]
+
+        [Required(ErrorMessage = "Kategori är obligatoriskt")]
+        [StringLength(50, ErrorMessage = "Kategori får inte överstiga 50 tecken")]
         public string Category { get; set; } = string.Empty;
 
         public int? AlbumId { get; set; }
@@ -25,8 +32,9 @@ namespace dt191g_moment4.Models
     public class Album
     {
         public int Id { get; set; }
-        [Required]
-        public string Name { get; set; } = string.Empty;
+        [Required(ErrorMessage = "Album namn är obligatoriskt")]
+        [StringLength(50, ErrorMessage = "Album namn kan inte vara längre än 50 tecken.")]
+        public string Name { get; set; } = null!;
         [JsonIgnore]
         public List<Song> Songs { get; set; } = new List<Song>();
     }
@@ -46,6 +54,7 @@ namespace dt191g_moment4.Models
     {
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
+    
     }
 
 }

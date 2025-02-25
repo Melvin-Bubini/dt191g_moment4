@@ -5,7 +5,7 @@
 namespace dt191g_moment4.Migrations
 {
     /// <inheritdoc />
-    public partial class secondcommit : Migration
+    public partial class Secondcommit : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
